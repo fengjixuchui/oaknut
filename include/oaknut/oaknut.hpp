@@ -112,8 +112,8 @@ public:
             return;
         if (MovImm16::is_valid(imm))
             return MOVZ(wd, imm);
-        if (MovImm16::is_valid(~static_cast<std::uint64_t>(imm)))
-            return MOVN(wd, imm);
+        if (MovImm16::is_valid(~imm))
+            return MOVN(wd, ~imm);
         if (detail::encode_bit_imm(imm))
             return ORR(wd, WzrReg{}, imm);
 
@@ -130,7 +130,7 @@ public:
         if (MovImm16::is_valid(imm))
             return MOVZ(xd, imm);
         if (MovImm16::is_valid(~imm))
-            return MOVN(xd, imm);
+            return MOVN(xd, ~imm);
         if (detail::encode_bit_imm(imm))
             return ORR(xd, ZrReg{}, imm);
 
@@ -157,6 +157,27 @@ public:
             imm >>= 16;
             shift_count++;
         }
+    }
+
+    void align(std::size_t alignment)
+    {
+        if (alignment < 4 || (alignment & (alignment - 1)) != 0)
+            throw "invalid alignment";
+
+        while (Policy::template ptr<std::uintptr_t>() & (alignment - 1)) {
+            NOP();
+        }
+    }
+
+    void dw(std::uint32_t value)
+    {
+        Policy::append(value);
+    }
+
+    void dx(std::uint64_t value)
+    {
+        Policy::append(static_cast<std::uint32_t>(value));
+        Policy::append(static_cast<std::uint32_t>(value >> 32));
     }
 
 private:
@@ -230,7 +251,7 @@ public:
     template<typename T>
     T ptr()
     {
-        static_assert(std::is_pointer_v<T>);
+        static_assert(std::is_pointer_v<T> || std::is_same_v<T, std::uintptr_t> || std::is_same_v<T, std::intptr_t>);
         return reinterpret_cast<T>(m_ptr);
     }
 
